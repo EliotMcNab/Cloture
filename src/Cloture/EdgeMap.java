@@ -8,11 +8,14 @@ import java.util.Arrays;
  */
 public class EdgeMap {
 
-    // various layers of edge detection
+    // region various layers of edge detection
     private final int[][] map;
     private final int[][] filledMap;
     private final int[][] outerEdges;
     private final int[][] zones;
+    // endregion
+
+    // region flood fields
 
     // the maximum and minimum flood x and y coordinates
     private int maxFloodX, minFloodX, maxFloodY, minFloodY;
@@ -20,11 +23,17 @@ public class EdgeMap {
     // the x-coordinates of the edge to the left and to the right of the flood
     private int leftFloodEdgeX, rightFloodEdgeX;
 
+    // endregion
+
+    // region method fields
+
     // the number of zones
     private int zoneCount = 1;
 
     // the perimeter of the edge
     private double perimeter;
+
+    // endregion
 
     // the map's width and height
     private final int MAP_WIDTH;
@@ -52,6 +61,8 @@ public class EdgeMap {
         minFloodX = MAP_WIDTH;
         minFloodY = MAP_HEIGHT;
         maxFloodX = maxFloodY = 0;
+
+        // region layer initialization
 
         // initialises the map
         this.map = new int[MAP_HEIGHT][MAP_WIDTH];
@@ -81,10 +92,15 @@ public class EdgeMap {
             Arrays.fill(row, 0);
         }
 
-        // generates each layer
+        // endregion
+
+        // region layer generation
+
         detectZones();
         detectOuterEdges();
         fillMap();
+
+        // endregion
 
         // calculates the fencing perimeter
         perimeter = calculateFencePerimeter();
@@ -106,11 +122,12 @@ public class EdgeMap {
     }
 
     /**
-     * Flood the layer with a specific zone
+     * Flood the layer with a specific zone AND checks if the map is convex
      * @param x the x coordinate at which to start the flood
      * @param y the y coordinate at which to start the flood
      * @param zone the zone which will flood the layer
      * @param layer the layer to flood
+     * @throws IllegalArgumentException if the map is not convex
      */
     private void flood(int x, int y, int zone, int[][] layer) {
 
@@ -120,16 +137,16 @@ public class EdgeMap {
         // updates the variables used to check if the map is convex
         updateConvexVars(x, y);
 
-        // checks the upper tile if there is one
+        // if the upper tile exists and is empty, flood it
         checkUpperFloodTile(x, y, zone, layer);
 
-        // checks the lower tile if there is one
+        // if the lower tile exists and is empty, flood it
         checkLowerFloodTile(x, y, zone, layer);
 
-        // checks the previous tile if there is one
+        // if the previous tile exists and is empty, flood it
         checkPreviousFloodTile(x, y, zone, layer);
 
-        // checks the next tile if there is one
+        // if the next tile exists and is empty, flood it
         checkNextFloodTile(x, y, zone, layer);
 
         // checks whether the map is convex
@@ -139,7 +156,7 @@ public class EdgeMap {
         resetConvexVars();
     }
 
-    // helper methods
+    // region helper methods
     private void updateConvexVars(int x, int y) {
         if (y < minFloodY) {
             minFloodY = y;
@@ -213,6 +230,7 @@ public class EdgeMap {
             flood(x+1, y, zone, layer);
         }
     }
+    // endregion
 
     // =========================================
     //                  MAP
@@ -223,7 +241,7 @@ public class EdgeMap {
      */
     private void fillMap() {
 
-        // clones the map to the filled map layer
+        // sets the "filled map" layer to be a clone of the original map
         for (int y = 0; y < MAP_HEIGHT; y++) {
             filledMap[y] = Arrays.copyOf(outerEdges[y], MAP_WIDTH);
         }
@@ -232,11 +250,16 @@ public class EdgeMap {
         int y = 0;
         int x = 0;
 
-        // the current tiles in the map layer and the outer edge layer
+        // the current tiles in the "map" layer and in the "outer edges" layer
         int curMapTile = map[y][x];
         int curEdgeTile = outerEdges[y][x];
 
+        // while a valid starting point to fill the map hasn't been found...
         while ((curMapTile == 0) || (curEdgeTile == 1)) {
+
+            // ERROR CASES
+
+            // region only one tile to fill
 
             // if the tile has tiles above, bellow and to its left and right
             // (i.e. : we can check the value of these tiles)
@@ -257,11 +280,19 @@ public class EdgeMap {
                 if (TILE_IS_SURROUND_BY_ONES) break;
             }
 
+            // endregion
+
+            // region no tile to fill
+
+            // if we have reached the end of the map...
             final boolean HAS_REACHED_END_OF_MAP = (x == MAP_WIDTH-1) && (y == MAP_HEIGHT-1);
 
+            // ...exits the method
             if (HAS_REACHED_END_OF_MAP) return;
 
-            // while the tile hasn't been found move on to the next tile
+            // endregion
+
+            // while a valid starting point hasn't been found move on to the next tile
             y = (y+1) % MAP_HEIGHT;
             x = (x+1) % MAP_WIDTH;
 
@@ -270,7 +301,7 @@ public class EdgeMap {
             curEdgeTile = outerEdges[y][x];
         }
 
-        // floods the map from there
+        // floods the map from the valid starting point, if it has been found
         flood(x, y, filledMap);
     }
 
@@ -291,6 +322,7 @@ public class EdgeMap {
      * @return the fence's perimeter
      */
     private double calculateFencePerimeter() {
+        // multiplies the number of fences by their length
         return getFenceCount() * 2.5;
     }
 
@@ -303,7 +335,7 @@ public class EdgeMap {
         // the number of edges
         int fenceCount = 0;
 
-        // loops through each row of the edges layer
+        // loops through each row in the "outer edges" layer
         for (int y = 0; y < MAP_HEIGHT; y++) {
 
             // loops through each tile of the row
@@ -318,7 +350,9 @@ public class EdgeMap {
                     continue;
                 }
 
-                // if the current tile is on the top ro bottom border...
+                // region special cases
+
+                // if the current tile is on the top or bottom border...
                 if ((x == 0) || (x == MAP_WIDTH-1)) {
                     // ...adds an extra fence to it
                     fenceCount++;
@@ -328,6 +362,10 @@ public class EdgeMap {
                     // ...adds an extra fence to it
                     fenceCount++;
                 }
+
+                // endregion
+
+                // region multiple fences per tile
 
                 // checks whether the current tile has any adjacent empty tiles
                 boolean hasEmptyAbove = upperTileIsEmpty(x, y);
@@ -358,6 +396,8 @@ public class EdgeMap {
                     // ...counts it as an fence
                     fenceCount++;
                 }
+
+                // endregion
             }
         }
 
@@ -365,7 +405,7 @@ public class EdgeMap {
         return fenceCount;
     }
 
-    // helper methods
+    // region helper methods
     private boolean upperTileIsEmpty(int x, int y) {
         // if there is no upper tile...
         if (y == 0) {
@@ -375,8 +415,6 @@ public class EdgeMap {
 
         // if the tile above is empty
         return filledMap[y - 1][x] == 0;
-
-        // the tile above is not empty
     }
     private boolean lowerTileIsEmpty(int x, int y) {
 
@@ -388,8 +426,6 @@ public class EdgeMap {
 
         // if the tile below is empty
         return filledMap[y + 1][x] == 0;
-
-        // the tile below is not empty
     }
     private boolean leftTileIsEmpty(int x, int y) {
 
@@ -401,8 +437,6 @@ public class EdgeMap {
 
         // if the tile to the left is empty
         return filledMap[y][x - 1] == 0;
-
-        // the tile to the left is not empty
     }
     private boolean rightTileIsEmpty(int x, int y) {
 
@@ -414,9 +448,8 @@ public class EdgeMap {
 
         // if the tile to the right is empty
         return filledMap[y][x + 1] == 0;
-
-        // the tile to the right is not empty
     }
+    // endregion
 
     // =========================================
     //              OUTER EDGES
@@ -436,6 +469,8 @@ public class EdgeMap {
 
                 // the current tile
                 int curTile = zones[y][x];
+
+                // region determining edges
 
                 // if the upper tile is an edge, and it hasn't been counted yet...
                 if (isAnOuterEdge(OUTER_ZONES, curTile) && upperTileIsAnEdge(x, y) && notInEdges(x, y-1)) {
@@ -460,28 +495,32 @@ public class EdgeMap {
                     // ...counts it as an edge
                     outerEdges[y][x+1] = 1;
                 }
+
+                // endregion
             }
+
+            // region special cases
 
             // Add edges along the upper and lower rows
             addRowEdges();
             // Add edges along the left and right edges
             addColumnEdges();
+
+            // endregion
         }
     }
 
-    // helper methods
+    // region helper methods
 
     // procedural edges
     private boolean isAnOuterEdge(ArrayList<Integer> outerEdges, int tile) {
         // if the tile is an outer edge
         return outerEdges.contains(tile);
-        // the tile is not an outer edge
     }
     private boolean notInEdges(int x, int y) {
         // if the edge has already been counted...
-        // ...do not consider this edge against
+        // ...do not consider this edge again
         return outerEdges[y][x] != 1;
-        // the edge hasn't been counted yet
     }
     private boolean upperTileIsAnEdge(int x, int y) {
         // if there is no upper tile...
@@ -492,8 +531,6 @@ public class EdgeMap {
 
         // if the upper tile is used
         return map[y - 1][x] == 1;
-
-        // the upper tile is not used
     }
     private boolean lowerTileIsAnEdge(int x, int y) {
         // if there is no lower tile...
@@ -504,8 +541,6 @@ public class EdgeMap {
 
         // if the lower tile is used
         return map[y + 1][x] == 1;
-
-        // the lower tile is not used
     }
     private boolean leftTileIsAnEdge(int x, int y) {
         // if there is no left tile...
@@ -516,8 +551,6 @@ public class EdgeMap {
 
         // if the left tile is used
         return map[y][x - 1] == 1;
-
-        // the left tile is not used
     }
     private boolean rightTileIsAnEdge(int x, int y) {
         // if there is no right tile...
@@ -528,8 +561,6 @@ public class EdgeMap {
 
         // if the right tile is used
         return map[y][x + 1] == 1;
-
-        // if the right tile is not used
     }
 
     // map border edges
@@ -573,6 +604,8 @@ public class EdgeMap {
         }
     }
 
+    // endregion
+
     // =========================================
     //                  ZONES
     // =========================================
@@ -591,6 +624,7 @@ public class EdgeMap {
         for (int y = 0; y < MAP_HEIGHT; y++) {
             // loops through every tile in the line...
             for (int x = 0; x < MAP_WIDTH; x++) {
+
                 // if the tile is unused...
                 if (zones[y][x] == 0) {
                     // ...floods it
@@ -600,13 +634,15 @@ public class EdgeMap {
 
         }
 
-        // removes the ones in the zones layer
+        // removes the ones in the zones layer for better readability
         removeOnes(zones);
     }
 
     private ArrayList<Integer> getOuterZones() {
         // the zones at the edge of the map
         ArrayList<Integer> outerZones = new ArrayList<>();
+
+        // region top and bottom outer zone
 
         // checks the tiles at the top of the map
         for (int tile : zones[0]) {
@@ -615,7 +651,7 @@ public class EdgeMap {
             // zone isn't yet counted as an outer zone...
             if ((tile > 1) && !(outerZones.contains(tile))) {
 
-                //...counts it as an outer tile
+                //...counts it as an outer zone
                 outerZones.add(tile);
             }
         }
@@ -627,10 +663,14 @@ public class EdgeMap {
             // zone isn't yet counted as an outer zone...
             if ((tile > 1) && !(outerZones.contains(tile))) {
 
-                //...counts it as an outer tile
+                //...counts it as an outer zone
                 outerZones.add(tile);
             }
         }
+
+        // endregion
+
+        // region left and right outer zones
 
         // checks the tiles to the left and the right of the map
         for (int y = 0; y < MAP_HEIGHT; y++) {
@@ -644,7 +684,7 @@ public class EdgeMap {
             // zone isn't yet counted as an outer zone...
             if ((leftTile > 1) && !(outerZones.contains(leftTile))) {
 
-                //...counts it as an outer tile
+                //...counts it as an outer zone
                 outerZones.add(leftTile);
             }
 
@@ -652,17 +692,19 @@ public class EdgeMap {
             // zone isn't yet counted as an outer zone...
             if ((rightTile > 1) && !(outerZones.contains(rightTile))) {
 
-                //...counts it as an outer tile
+                //...counts it as an outer zone
                 outerZones.add(rightTile);
             }
         }
+
+        // endregion
 
         // return the outer zones
         return outerZones;
     }
 
     private ArrayList<Integer> getInnerZones() {
-        // the zones inside the map
+        // the zones that are inside the perimeter
         ArrayList<Integer> innerZones = new ArrayList<>();
 
         // the outer zones
@@ -672,7 +714,7 @@ public class EdgeMap {
         for (int zoneNumber = 2; zoneNumber <= zoneCount; zoneNumber++) {
             // ...that are not outer zones...
             if (!outerZones.contains(zoneNumber)) {
-                // ...adds it to the inner zones...
+                // ...and adds them to the inner zones
                 innerZones.add(zoneNumber);
             }
         }
@@ -681,7 +723,7 @@ public class EdgeMap {
         return innerZones;
     }
 
-    // helper method
+    // region helper method
     private void removeOnes(int[][] layer) {
         for (int y = 0; y < MAP_HEIGHT; y++) {
             for (int x = 0; x < MAP_WIDTH; x++) {
@@ -689,6 +731,7 @@ public class EdgeMap {
             }
         }
     }
+    // endregion
 
     // =========================================
     //                 DISPLAYS
@@ -722,20 +765,22 @@ public class EdgeMap {
         display(filledMap);
     }
 
-    // helper method
-    private void display(int[][] toDisplay) {
-        // the string displaying the edges of the map
+    // region helper method
+    private void display(int[][] layerToDisplay) {
+        // the string displaying the layer
         StringBuilder finalDisplay = new StringBuilder();
 
         // converts each row to a string
-        for (int[] row: toDisplay) {
+        for (int[] row: layerToDisplay) {
             String rowString = Arrays.toString(row) + "\n";
             finalDisplay.append(rowString);
         }
 
+        // replace zeros by "_" for better readability
         finalDisplay = new StringBuilder(finalDisplay.toString().replace("0", "_"));
 
         // displays the formatted result
         System.out.println(finalDisplay);
     }
+    // endregion
 }
